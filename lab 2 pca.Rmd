@@ -1,0 +1,154 @@
+---
+title: "lab 2 244"
+author: "Maya Szafraniec"
+date: "1/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+library(naniar)
+library(VIM)
+library(skimr)
+library(ggfortify)
+library(here)
+```
+
+## 1. get some data
+
+```{r}
+ca_pb<-read_csv(here("data","ca_pollution_burden.csv"))
+ca_dem<-read_csv(here("data","ca_census_demographics_2010.csv"))
+```
+
+## 2. some data cleaning and wrangling
+
+```{r}
+ca_pb_nopct<-ca_pb %>% 
+  clean_names() %>% 
+  select(-contains("perc")) %>% 
+  select(-contains("pctl")) %>% 
+  select(-latitude,-longitude)
+```
+
+```{r}
+ca_dem_clean<-ca_dem %>% 
+  clean_names()
+```
+
+## 3. Polution burden indicators only
+
+```{r}
+ca_pb_subset<-ca_pb_nopct %>% 
+  select(ozone:solid_waste,asthma:housing_burden)
+```
+
+Now lets do pca
+use the prcomp() function
+
+```{r, eval=FALSE}
+
+#this gives an error because there are missings
+pb_pca<-prcomp(ca_pb_subset,scale=TRUE)
+```
+
+Aside:exploring missingness!
+```{r}
+summary(ca_pb_subset)
+
+gg_miss_var(ca_pb_subset) #gives a plot for the number of missings you have in each column
+
+matrixplot(ca_pb_subset,sortby = "poverty") # like a heat map of missing ness, darkness of gray scale indicates the value if it is missnig then their is a red spot (dark is higher number)
+
+#sort by so poverty is from high to low and missings are on top
+
+
+```
+
+remove by compleat case deletion, any observation with any na values
+
+```{r}
+ca_pb_nona<-ca_pb_subset %>% 
+  drop_na()
+
+summary(ca_pb_nona)
+
+skim(ca_pb_nona) #v nice summary of the data
+
+```
+
+now, no NA values, cool set to do PCA, otherwise consider imputaiton 
+
+```{r}
+my_ca_pca<-prcomp(ca_pb_nona,scale=TRUE)
+
+my_ca_pca
+summary(my_ca_pca)
+
+#biplot(my_ca_pca) #its gross, so make it cleaner
+
+#actually use autoplot
+
+#colour means dont show the location of points
+
+my_biplot<-autoplot(my_ca_pca,
+                    colour=NA,
+                    loadings.label=TRUE,
+                    loadings.label.size=3,
+                    loading.lable.colour="black",
+                    loading.label.repel =TRUE)
+
+my_biplot
+
+
+```
+
+## 4. PCA for polution burden + some demographics
+
+join together the ca_dem_clean with ca_pb_nopct
+
+```{r}
+ca_df<-ca_dem_clean %>% 
+  inner_join(ca_pb_nopct,by=c("census_tract_number"="census_tract"))
+
+#now deop NAs by complete case deletion
+ca_nona<-ca_df %>% 
+  drop_na()
+```
+
+maek a subset of ca_nona that only inculdes the following variables
+-white_percent
+-elderly_65_percent
+-pm2_5
+-pesticides
+-traffic
+-asthma
+-cardiovasular_disease
+-poverty
+
+```{r}
+my_sub<-ca_nona %>% 
+  select(white_percent,elderly_65_percent,pm2_5,pesticides,traffic,asthma,cardiovascular_disease,poverty)
+```
+
+My PCA
+
+```{r}
+my_dem_pca<-prcomp(my_sub,scale=TRUE)
+
+my_dem_biplot<-autoplot(my_dem_pca,
+                    colour=NA,
+                    loadings.label=TRUE,
+                    loadings.label.size=3,
+                    loading.lable.colour="black",
+                    loading.label.repel =TRUE)+
+  scale_y_continuous(limits=c(-0.05,0.05))+
+  theme_minimal()
+
+my_dem_biplot
+
+```
+
